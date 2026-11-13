@@ -1,0 +1,60 @@
+# kubernetes-agent.yaml: the building blocks for your agent. setup.sh applies this file.
+# You never need to edit it. In Step 2 you create your own Agent in the kagent UI
+# by pairing the template and the harness below.
+#
+#   Harness       = WHERE the agent runs: on Agent Substrate, in the kagent-default WorkerPool
+#   AgentTemplate = WHAT the agent is: its instructions, AI model and tools
+#   Agent         = a named agent that pairs one template with one harness (you make this)
+---
+apiVersion: api.kagent.dev/v1alpha3
+kind: RemoteMCPServer                         # a tool server agents can call (MCP = Model Context Protocol)
+metadata:
+  name: kubernetes-tools
+  namespace: kagent
+spec:
+  # kagent's built-in Kubernetes tool server, by its full DNS name. The sandbox an
+  # agent runs in only resolves full names, so the bundled "kagent-tool-server"
+  # entry (which uses the short name kagent-tools.kagent) can't be reached from it.
+  url: http://kagent-tools.kagent.svc.cluster.local:8084/mcp
+  timeout: 30s
+  description: Kubernetes tools, by full DNS name so Substrate sandboxes can reach them
+---
+apiVersion: api.kagent.dev/v1alpha3          # kagent 1.x API version
+kind: Harness                                 # where and how agents run
+metadata:
+  name: substrate-harness                     # pick this harness in the UI
+  namespace: kagent                           # kagent's namespace
+spec:
+  kagent: {}                                  # use kagent's built-in agent runtime
+  substrate:                                  # run every chat as an Agent Substrate actor
+    workerPoolRef:
+      name: kagent-default                    # the WorkerPool (the warm workers) setup.sh created
+    snapshotPolicy:
+      location: s3://ate-snapshots/kagent/    # where sleeping actors' snapshots are stored (in-cluster storage)
+---
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate                           # the agent's instructions, model and tools
+metadata:
+  name: kubernetes-agent                      # pick this template in the UI
+  namespace: kagent
+spec:
+  description: Diagnoses problems in your Kubernetes cluster. Read-only.
+  modelConfig:
+    name: default-model-config                # free Gemini model created by setup.sh
+  systemPrompt: |-                            # the agent's standing instructions
+    You are a friendly Kubernetes troubleshooting assistant for someone new to Kubernetes.
+    Use your tools to look at the cluster before you answer. Never guess.
+    You are read-only: you never create, change, restart or delete anything yourself.
+    When you find a problem, explain the cause in plain English, then give the single
+    command the person can run to fix it.
+    Keep answers short and explain any Kubernetes term the first time you use it.
+  tools:
+    - mcp:
+        server:
+          kind: RemoteMCPServer
+          name: kubernetes-tools              # the tool server defined at the top of this file
+        tools:                                # read-only tools only
+          - k8s_get_resources                 # list pods, deployments, services, ...
+          - k8s_describe_resource             # detailed view of one resource
+          - k8s_get_events                    # recent events (errors, image pull failures, restarts)
+          - k8s_get_pod_logs                  # read a pod's logs

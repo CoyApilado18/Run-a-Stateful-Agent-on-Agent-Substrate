@@ -1,0 +1,6 @@
+.env
+bin/
+setup.log
+.ui-port-forward.*
+.kagent-config.yaml
+.substrate-values.yaml
