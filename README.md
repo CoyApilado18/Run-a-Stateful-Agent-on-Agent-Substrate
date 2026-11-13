@@ -1,4 +1,3 @@
-path: /mnt/d/Projects/NextWork/
 # 30 Second Summary
 Most AI agents sit idle between requests, but their infrastructure keeps consuming resources. Running more agents usually means paying for more capacity that spends most of its time waiting.  
 
